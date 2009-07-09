@@ -193,10 +193,6 @@ static int open_library(const char *name)
     return -1;
 }
 
-/* temporary space for holding the first page of the shared lib
- * which contains the elf header (with the pht). */
-static unsigned char __header[PAGE_SIZE];
-
 /* verify_elf_object
  *      Verifies if the object @ base is a valid ELF object
  *
@@ -232,44 +228,52 @@ static void elf_loadsection(int fd, Elf32_Shdr *s, char *q)
 	read(fd, q, s->sh_size);
 }
 
-static const struct kernel_symbol *
-resolve_symbol(Elf32_Shdr *sechdrs, char *name)
-{
-	//to do
-}
 
-//update all symbols
-static void update_symbols(Elf32_Shdr *sechdrs, 
+//resolve all symbols
+static void resolve_symbols(Elf32_Shdr *sechdrs, 
 			unsigned int symindex, 
 			char *strtab)
 {
-	Elf32_Sym *sym = (void *)sechdrs[symindex].sh_addr;
+	Elf32_Sym *sym = sechdrs[symindex].sh_addr;
 	unsigned int i, num = sechdrs[symindex].sh_size / sizeof(Elf32_Sym);
 	int ret = 0;
 	unsigned long secbase;
 	struct dl_symbol *dlsym;
+	unsigned char type, bind;
+	char *name;
 
 	TRACE("%d total symbols\n", num);
 	for (i = 1; i < num; i++) {//ignore the first one entry
-		TRACE("%d symbol\n", i);
-		switch (sym[i].st_shndx) {
-		case SHN_UNDEF://extern symbol
-			TRACE("UNDEF symbol\n");
-			dlsym = resolve_symbol(sechdrs, strtab + sym[i].st_name);
-			if (dlsym) {
-				sym[i].st_value = dlsym->value;
-			} else {
-				ERROR("Unknown symbol %s\n", 
-					strtab + sym[i].st_name);
-				exit(-1);
-			}
+		type = ELF_ST_TYPE (sym[i].st_info);
+		bind = ELF_ST_BIND (sym[i].st_info);
+		name = strtab + sym[i].st_name;
+		TRACE("%d symbol: %s---", i, name);
+		switch (type) {
+		case STT_SECTION:
+		case STT_FILE:
+			TRACE("Do nothing\n");
 			break;
-		case SHN_ABS://do nothing;
-			TRACE("ABS symbol\n");
+		case STT_NOTYPE://extern symbol
+			if (sym[i].st_name != 0 && sym[i].st_shndx == 0) {
+				TRACE("extern symbol\n");
+				/*sym[i].st_value = lookup_global_symbol(name);
+				if (!sym[i].st_value) {
+					ERROR("Unknown symbol %s\n", name);
+					exit(-1);
+				}*/
+			}	
+			break;
+		case STT_OBJECT:
+			TRACE("internal data symbol\n");
+			sym[i].st_value += sechdrs[sym[i].st_shndx].sh_addr;
+			break;
+		case STT_FUNC:
+			TRACE("internal function symbol\n");
+			sym[i].st_value += sechdrs[sym[i].st_shndx].sh_addr;
 			break;			
-		default://internal symbol
-			TRACE("internal symbol\n");
-			sym[i].st_value = sechdrs[sym[i].st_shndx].sh_addr;
+		default:
+			ERROR("Unknow type %d\n", type);
+			//exit(-1);
 			break;
 		}
 	}
@@ -287,6 +291,7 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 	num = sechdrs[relsec].sh_size/sizeof(*rel);
 	TRACE("%d relocations\n", num);
 	for (i = 0; i < num; i++) {
+		TRACE("[%d rel] sym=%d offset=0x%x\n", i, ELF32_R_SYM(rel[i].r_info), rel[i].r_offset);
 		where = (void *)sechdrs[sechdrs[relsec].sh_info].sh_addr
 			+ rel[i].r_offset;
 		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr
@@ -294,9 +299,11 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 
 		switch (ELF32_R_TYPE(rel[i].r_info)) {
 		case R_386_32://s+a
+			TRACE("R_386_32\n");
 			*where += sym->st_value;
 			break;
-		case R_386_PC32://s+a=p
+		case R_386_PC32://s+a-p
+			TRACE("R_386_PC32\n");
 			/* Add the value, subtract its postition */
 			*where += sym->st_value - (uint32_t)where;
 			break;
@@ -309,17 +316,18 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 	}
 	return 0;
 }
+
 typedef int (*void_fn_void_t)(void);//for test
 static soinfo *
 load_library(const char *name)
 {
 	int fd = open_library(name);
-	int i, cnt, err;
+	int i, j, cnt, err;
 	unsigned entry;
 	soinfo *si = NULL;
 	Elf32_Ehdr hdr;
 	Elf32_Shdr *sechdrs, *p;
-	char *sname, *q, *shstrtbl;
+	char *sname, *q, *shstrtbl, *strtab;
 	int totalsize = 0;
 	unsigned int symindex = 0;
 
@@ -396,7 +404,6 @@ load_library(const char *name)
 				break;
 			case SHT_SYMTAB:
 				TRACE("section: %s\n", sname);
-				symindex = i;
 				totalsize += p->sh_size;
 				break;
 			case SHT_RELA:
@@ -425,45 +432,56 @@ load_library(const char *name)
 					!strcmp(sname,".text")){
 					TRACE("loading section: %s\n", sname);
 					elf_loadsection(fd, p, q);
+					p->sh_addr = q;
 				}
 				//test to see resolving and relocation works
-				/*if (!strcmp(sname, ".text")) {
-					entry = q + p->sh_size;
-				}*/
+				if (!strcmp(sname, ".text")) {
+					entry = q;
+				}
 				break;
 			case SHT_NOBITS:
-			case SHT_SYMTAB:
 				TRACE("loading section: %s\n", sname);
 				elf_loadsection(fd, p, q);
+				p->sh_addr = q;
+				break;
+			case SHT_SYMTAB:
+				TRACE("loading section: %s\n", sname);
+				symindex = i;
+				elf_loadsection(fd, p, q);
+				p->sh_addr = q;
+				strtab = malloc(sechdrs[p->sh_link].sh_size);
+				TRACE("string size: %d\n", sechdrs[p->sh_link].sh_size);
+				elf_loadsection(fd, &sechdrs[p->sh_link], strtab);
+				sechdrs[p->sh_link].sh_addr = strtab;
 				break;
 			case SHT_RELA:
 			case SHT_REL:
-				if (!strcmp(sname,".data") ||
-					!strcmp(sname,".text")){
-					TRACE("loading section: %s\n", sname);
-					elf_loadsection(fd, p, q);
-					elf_loadsection(fd, p, q);
-				}
+				TRACE("loading section: %d %s\n", p->sh_name, sname);
+				elf_loadsection(fd, p, q);
+				p->sh_addr = q;
 				break;
 		}
 		q += p->sh_size;
 	}
 
-	TRACE("updating symbols...\n");
-	update_symbols(sechdrs, symindex, shstrtbl);
+	TRACE("resolving symbols...\n");
+	resolve_symbols(sechdrs, symindex, strtab);
 
 	//relocation
 	TRACE("relocating...\n");
 	for (i = 1; i < hdr.e_shnum; i++) {
-		if (sechdrs[i].sh_type == SHT_REL)
+		if (sechdrs[i].sh_type == SHT_REL) {
+			TRACE("SHT_REL relocate %s\n", shstrtbl+sechdrs[i].sh_name);
 			err = do_relocate(sechdrs, symindex, i);
+		}
 		else if (sechdrs[i].sh_type == SHT_RELA) {
 			//todo
 		}
 		if (err != 0)
 			goto fail;
 	}
-	//TRACE("%d\n", ((void_fn_void_t)entry)());
+	TRACE("DONE\n");
+	TRACE("%d\n", ((void_fn_void_t)entry)());
   
 	close(fd);
 	return si;
