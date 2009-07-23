@@ -112,6 +112,7 @@ int main(int argc, char **argv)
 {
     char *libname, *symname, *prog = *argv;
     debug_verbosity = 8;
+    typedef int (*void_fn_void_t)(void);
 
     get_options(argc, argv, &libname, &symname);
 
@@ -130,17 +131,17 @@ int main(int argc, char **argv)
         const char *dlerr;
         void *handle, *symbol;
 
-	//__linker_init();
 	printf("opening library [%s]\n", libname);
         dlerr = dlerror();
         handle = dlopen(libname, RTLD_NOW);
         dlerr = dlerror();
         if (dlerr != NULL) fprintf(stderr, "dlopen() error: %s\n", dlerr);
-/*
+
         printf("opening symbol [%s]\n", symname);
         symbol = dlsym(handle, symname);
+	printf("*******%d*********\n", ((void_fn_void_t)symbol)());
         dlerr = dlerror();
-        if (dlerr != NULL) fprintf(stderr, "dlsym() error: %s\n", dlerr);*/
+        if (dlerr != NULL) fprintf(stderr, "dlsym() error: %s\n", dlerr);
 
         printf("closing library [%s]\n", libname);
         dlclose(handle);

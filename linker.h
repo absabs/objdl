@@ -148,6 +148,7 @@ struct soinfo
 
     unsigned refcount;
     struct link_map linkmap;
+    struct dl_symbol *dlsyms;
 };
 
 
@@ -209,8 +210,8 @@ extern soinfo libdl_info;
 
 soinfo *find_library(const char *name);
 unsigned unload_library(soinfo *si);
-Elf32_Sym *lookup_in_library(soinfo *si, const char *name);
-Elf32_Sym *lookup(const char *name, unsigned *base);
+unsigned long lookup_in_library(soinfo *si, const char *name);
+unsigned long lookup(const char *name);
 
 #ifdef ANDROID_ARM_LINKER 
 typedef long unsigned int *_Unwind_Ptr;

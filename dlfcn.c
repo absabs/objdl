@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include "linker.h"
 
+#define SYSSYMFILE	"sym.map"
 /* This file hijacks the symbols stubbed out in libdl.so. */
 
 #define DL_SUCCESS                    0
@@ -45,8 +46,15 @@ static pthread_mutex_t dl_lock = PTHREAD_MUTEX_INITIALIZER;
 void *dlopen(const char *filename, int flag) 
 {
 	soinfo *ret;
+	static int initialized = 0;
 
 	pthread_mutex_lock(&dl_lock);
+	
+	if (!initialized) {
+		//__linker_init(SYSSYMFILE);
+		initialized = 1;
+	}
+
 	ret = find_library(filename);
 	if (unlikely(ret == NULL)) {
 		dl_last_err = DL_ERR_CANNOT_FIND_LIBRARY;
@@ -63,11 +71,10 @@ const char *dlerror(void)
     dl_last_err = DL_SUCCESS;
     return err;
 }
-/*
+
 void *dlsym(void *handle, const char *symbol)
 {
-    unsigned base;
-    Elf32_Sym *sym;
+    unsigned long sym;
     unsigned bind;
 
     pthread_mutex_lock(&dl_lock);
@@ -82,31 +89,23 @@ void *dlsym(void *handle, const char *symbol)
     }
     
     if(handle == RTLD_DEFAULT) {
-        sym = lookup(symbol, &base);
+        sym = lookup(symbol);
     } else if(handle == RTLD_NEXT) {
-        sym = lookup(symbol, &base);
+        sym = lookup(symbol);
     } else {
         sym = lookup_in_library((soinfo*) handle, symbol);
-        base = ((soinfo*) handle)->base;
     }
-
-    if(likely(sym != 0)) {
-        bind = ELF32_ST_BIND(sym->st_info);
     
-        if(likely((bind == STB_GLOBAL) && (sym->st_shndx != 0))) {
-            unsigned ret = sym->st_value + base;
-            pthread_mutex_unlock(&dl_lock);
-            return (void*)ret;
-        }
-
-        dl_last_err = DL_ERR_SYMBOL_NOT_GLOBAL;
+    if(likely(sym != 0)) {
+        pthread_mutex_unlock(&dl_lock);
+        return (void*)sym;
     }
     else dl_last_err = DL_ERR_SYMBOL_NOT_FOUND;
 
 err:
     pthread_mutex_unlock(&dl_lock);
     return 0;
-}*/
+}
 
 int dlclose(void *handle)
 {
