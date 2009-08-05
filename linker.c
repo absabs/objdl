@@ -457,8 +457,11 @@ load_library(const char *name)
 				break;
 			case SHT_RELA:
 			case SHT_REL:
-				totalsize += p->sh_size;
-				TRACE("section: %s\n", sname);
+				if (!strcmp(sname,".rel.data") ||
+					!strcmp(sname,".rel.text")) {
+					TRACE("section: %s\n", sname);
+					totalsize += p->sh_size;
+				}
 				break;
 		}
 	}
@@ -498,9 +501,13 @@ load_library(const char *name)
 				break;
 			case SHT_RELA:
 			case SHT_REL:
-				TRACE("loading section: %d %s\n", p->sh_name, sname);
-				elf_loadsection(fd, p, q);
-				p->sh_addr = (unsigned long)q;
+				if (!strcmp(sname,".rel.data") ||
+					!strcmp(sname,".rel.text")) {
+					TRACE("loading section: %d %s\n", p->sh_name, sname);
+					elf_loadsection(fd, p, q);
+					p->sh_addr = (unsigned long)q;
+					TRACE("%d-----%p\n", i, q);
+				}
 				break;
 		}
 		q += p->sh_size;
@@ -512,11 +519,15 @@ load_library(const char *name)
 	//relocation
 	TRACE("relocating...\n");
 	for (i = 1; i < hdr.e_shnum; i++) {
+		sname = shstrtbl + sechdrs[i].sh_name;
 		if (sechdrs[i].sh_type == SHT_REL) {
-			TRACE("SHT_REL relocate %s\n", shstrtbl+sechdrs[i].sh_name);
-			err = do_relocate(sechdrs, symindex, i);
-			if (err != 0)
-				goto fail;
+			if (!strcmp(sname,".rel.data") ||
+				!strcmp(sname,".rel.text")) {
+				TRACE("SHT_REL relocate %s\n", sname);
+				err = do_relocate(sechdrs, symindex, i);
+				if (err != 0)
+					goto fail;
+			}
 		}
 		else if (sechdrs[i].sh_type == SHT_RELA) {
 			//todo
@@ -587,6 +598,7 @@ void __linker_init(char *filename)
 			ERROR("No Memory\n");
 			exit(-1);
 		}
+		buffer[strlen(buffer)-1] = '\0';
 		buffer[8] = '\0';
 		entry->value = strtoul(buffer, NULL, 16);
 		entry->name = strdup(buffer + 11);

@@ -51,7 +51,7 @@ void *dlopen(const char *filename, int flag)
 	pthread_mutex_lock(&dl_lock);
 	
 	if (!initialized) {
-		//__linker_init(SYSSYMFILE);
+		__linker_init(SYSSYMFILE);
 		initialized = 1;
 	}
 

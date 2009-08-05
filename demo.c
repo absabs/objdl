@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
-#include <dlfcn.h>
+#include "dlfcn.h"
 
 extern char *optarg;
 extern int optind, opterr, optopt;
@@ -69,7 +69,10 @@ void print_help(const char *name) {
         desc++;
     }
 }
-
+int kkget()
+{
+	return 2;
+}
 int get_options(int argc, char **argv, char **lib, char **sym) 
 {
     int c;
@@ -112,7 +115,7 @@ int main(int argc, char **argv)
 {
     char *libname, *symname, *prog = *argv;
     debug_verbosity = 8;
-    typedef int (*void_fn_void_t)(void);
+    typedef int (*int_fn_void_t)(void);
 
     get_options(argc, argv, &libname, &symname);
 
@@ -139,11 +142,14 @@ int main(int argc, char **argv)
 
         printf("opening symbol [%s]\n", symname);
         symbol = dlsym(handle, symname);
-	printf("*******%d*********\n", ((void_fn_void_t)symbol)());
+	printf("*******%d*********\n", ((int_fn_void_t)symbol)());
         dlerr = dlerror();
         if (dlerr != NULL) fprintf(stderr, "dlsym() error: %s\n", dlerr);
 
-        printf("closing library [%s]\n", libname);
+        printf("opening symbol [%s] via RTLD_DEFAULT\n", "kkget");
+        symbol = dlsym(RTLD_DEFAULT, "kkget");
+	printf("*******%d*********\n", ((int_fn_void_t)symbol)());
+	printf("closing library [%s]\n", libname);
         dlclose(handle);
         dlerr = dlerror();
         if (dlerr != NULL) fprintf(stderr, "dlclose() error: %s\n", dlerr);
