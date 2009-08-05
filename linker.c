@@ -241,7 +241,7 @@ static void add_global_symbol(soinfo *si, char *name, unsigned long value)
 	si->dlsyms = dlsym;
 }
 
-static unsigned long lookup_global_symbol(char *name)
+static unsigned long lookup_global_symbol(const char *name)
 {
 	soinfo *si;
 	struct dl_symbol *dlsym;
@@ -372,7 +372,7 @@ static soinfo *
 load_library(const char *name)
 {
 	int fd = open_library(name);
-	int i, j, cnt, err;
+	int i, j, cnt, err = 0;
 	soinfo *si = NULL;
 	Elf32_Ehdr hdr;
 	Elf32_Shdr *sechdrs, *p;
@@ -457,11 +457,8 @@ load_library(const char *name)
 				break;
 			case SHT_RELA:
 			case SHT_REL:
-				if (!strcmp(sname,".data") ||
-					!strcmp(sname,".text")) {
-					totalsize += p->sh_size;
-					TRACE("section: %s\n", sname);
-				}
+				totalsize += p->sh_size;
+				TRACE("section: %s\n", sname);
 				break;
 		}
 	}
@@ -518,12 +515,12 @@ load_library(const char *name)
 		if (sechdrs[i].sh_type == SHT_REL) {
 			TRACE("SHT_REL relocate %s\n", shstrtbl+sechdrs[i].sh_name);
 			err = do_relocate(sechdrs, symindex, i);
+			if (err != 0)
+				goto fail;
 		}
 		else if (sechdrs[i].sh_type == SHT_RELA) {
 			//todo
 		}
-		if (err != 0)
-			goto fail;
 	}
 	TRACE("DONE\n");
   
@@ -593,10 +590,10 @@ void __linker_init(char *filename)
 		buffer[8] = '\0';
 		entry->value = strtoul(buffer, NULL, 16);
 		entry->name = strdup(buffer + 11);
-		p->next = entry;
+		entry->next = p;
 		p = entry;
 	}
-	p->next = NULL;
+	syssyms = p;
 
 	fclose(infile);
 
