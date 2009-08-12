@@ -64,7 +64,6 @@
  */
 #if LINKER_DEBUG
 extern int debug_verbosity;
-#warning "*** LINKER IS USING printf(); DO NOT CHECK THIS IN ***"
 #define _PRINTVF(v,f,x...)    __PRINTVF(v,f,x)
 #else /* !LINKER_DEBUG */
 #define _PRINTVF(v,f,x...)   do {} while(0)

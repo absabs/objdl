@@ -282,13 +282,13 @@ static void resolve_symbols(Elf32_Shdr *sechdrs,
 			unsigned int symindex, 
 			char *strtab, soinfo *si)
 {
-	Elf32_Sym *sym = sechdrs[symindex].sh_addr;
-	unsigned int i, num = sechdrs[symindex].sh_size / sizeof(Elf32_Sym);
+	char *name;
 	int ret = 0;
 	unsigned long secbase;
 	struct dl_symbol *dlsym;
 	unsigned char type, bind;
-	char *name;
+	unsigned int i, num = sechdrs[symindex].sh_size / sizeof(Elf32_Sym);
+	Elf32_Sym *sym = (Elf32_Sym *)sechdrs[symindex].sh_addr;
 
 	TRACE("%d total symbols\n", num);
 	for (i = 1; i < num; i++) {//ignore the first one entry
@@ -444,22 +444,22 @@ load_library(const char *name)
 				if (!strcmp(sname,".data") ||
 					!strcmp(sname,".text")) {
 					totalsize += p->sh_size;
-					TRACE("section: %s\n", sname);
+					TRACE("section:%s %dB bytes\n", sname, p->sh_size);
 				}
 				break;
 			case SHT_NOBITS:
-				TRACE("section: %s\n", sname);
+				TRACE("section:%s %dB bytes\n", sname, p->sh_size);
 				totalsize += p->sh_size;
 				break;
 			case SHT_SYMTAB:
-				TRACE("section: %s\n", sname);
+				TRACE("section:%s %dB bytes\n", sname, p->sh_size);
 				totalsize += p->sh_size;
 				break;
 			case SHT_RELA:
 			case SHT_REL:
 				if (!strcmp(sname,".rel.data") ||
 					!strcmp(sname,".rel.text")) {
-					TRACE("section: %s\n", sname);
+					TRACE("section:%s %dB bytes\n", sname, p->sh_size);
 					totalsize += p->sh_size;
 				}
 				break;
@@ -470,6 +470,7 @@ load_library(const char *name)
 		ERROR("calloc failed!\n");
 		goto fail;
 	}
+	TRACE("need to load %dB bytes\n", totalsize);
 	TRACE("loading needed sections...\n");
 	for (i = 0; i < hdr.e_shnum; i++) {
 		p = sechdrs + i;
@@ -482,18 +483,21 @@ load_library(const char *name)
 					TRACE("loading section: %s\n", sname);
 					elf_loadsection(fd, p, q);
 					p->sh_addr = (unsigned long)q;
+					q += p->sh_size;
 				}
 				break;
 			case SHT_NOBITS:
 				TRACE("loading section: %s\n", sname);
 				elf_loadsection(fd, p, q);
 				p->sh_addr = (unsigned long)q;
+				q += p->sh_size;
 				break;
 			case SHT_SYMTAB:
 				TRACE("loading section: %s\n", sname);
 				symindex = i;
 				elf_loadsection(fd, p, q);
 				p->sh_addr = (unsigned long)q;
+				q += p->sh_size;
 				strtab = malloc(sechdrs[p->sh_link].sh_size);
 				TRACE("string size: %d\n", sechdrs[p->sh_link].sh_size);
 				elf_loadsection(fd, &sechdrs[p->sh_link], strtab);
@@ -506,11 +510,11 @@ load_library(const char *name)
 					TRACE("loading section: %d %s\n", p->sh_name, sname);
 					elf_loadsection(fd, p, q);
 					p->sh_addr = (unsigned long)q;
+					q += p->sh_size;
 					TRACE("%d-----%p\n", i, q);
 				}
 				break;
 		}
-		q += p->sh_size;
 	}
 
 	TRACE("resolving symbols...\n");
