@@ -17,7 +17,7 @@
 #include <pthread.h>
 #include "linker.h"
 
-#define SYSSYMFILE	"sym.map"
+#define SYSSYMFILE	"sym.map.gz"
 /* This file hijacks the symbols stubbed out in libdl.so. */
 
 #define DL_SUCCESS                    0

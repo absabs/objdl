@@ -34,11 +34,9 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
-
 #include <pthread.h>
-
 #include <sys/mman.h>
-
+#include <zlib.h>
 
 #include "linker.h"
 #include "linker_debug.h"
@@ -585,18 +583,18 @@ unsigned unload_library(soinfo *si)
 //read the core sym and initialize
 void __linker_init(char *filename)
 {
-	FILE *infile;
+	gzFile gzfile;
 	char buffer[BUFSIZ/2];
 	struct dl_symbol *entry;
 	struct dl_symbol *p = syssyms;
 
-	infile = fopen(filename, "r");
-	if (!infile) {
-		ERROR("Couldn't open file %s for reading.\n", filename);
+	gzfile = gzopen(filename, "rb");
+	if (gzfile == NULL) {
+		ERROR("error gzopen sym file:%s\n", filename);
 		exit(-1);
 	}
 	
-	while (fgets(buffer, sizeof(buffer), infile)) {
+	while (gzgets(gzfile, buffer, sizeof(buffer))) {
 		entry = malloc(sizeof(*entry));
 		if (!entry) {
 			ERROR("No Memory\n");
@@ -611,7 +609,7 @@ void __linker_init(char *filename)
 	}
 	syssyms = p;
 
-	fclose(infile);
+	gzclose(gzfile);
 
 	//test
 	/*p = sym;
