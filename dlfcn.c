@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "dlfcn.h"
 #include <pthread.h>
+#include "dlfcn.h"
 #include "linker.h"
 
 #define SYSSYMFILE	"sym.map.gz"

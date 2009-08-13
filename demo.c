@@ -69,10 +69,12 @@ void print_help(const char *name) {
         desc++;
     }
 }
+
 int kkget()
 {
 	return 2;
 }
+
 int get_options(int argc, char **argv, char **lib, char **sym) 
 {
     int c;

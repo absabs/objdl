@@ -1,3 +1,6 @@
+/* Copyright (C) 2009 Jisheng Zhang <jszhang3 AT gmail.com>
+ * The preceding source of this file is copied from Android's bionic libc code
+ */
 /*
  * Copyright (C) 2008 The Android Open Source Project
  * All rights reserved.
@@ -31,47 +34,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
-#include <dlfcn.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <sys/mman.h>
 #include <zlib.h>
 
+#include "dlfcn.h"
 #include "linker.h"
 #include "linker_debug.h"
 
-
 #define SO_MAX 64
-
-/* >>> IMPORTANT NOTE - READ ME BEFORE MODIFYING <<<
- *
- * Do NOT use malloc() and friends or pthread_*() code here.
- * Don't use printf() either; it's caused mysterious memory
- * corruption in the past.
- * The linker runs before we bring up libc and it's easiest
- * to make sure it does not depend on any complex libc features
- *
- * open issues / todo:
- *
- * - should we do anything special for STB_WEAK symbols?
- * - are we doing everything we should for ARM_COPY relocations?
- * - cleaner error reporting
- * - configuration for paths (LD_LIBRARY_PATH?)
- * - after linking, set as much stuff as possible to READONLY
- *   and NOEXEC
- * - linker hardcodes PAGE_SIZE and PAGE_MASK because the kernel
- *   headers provide versions that are negative...
- * - allocate space for soinfo structs dynamically instead of
- *   having a hard limit (64)
- *
- * features to add someday:
- *
- * - dlopen() and friends
- *
-*/
-
-
 
 static int socount = 0;
 static soinfo sopool[SO_MAX];
@@ -109,7 +81,6 @@ static soinfo *alloc_info(const char *name)
     /* Make sure we get a clean block of soinfo */
     memset(si, 0, sizeof(soinfo));
     strcpy((char*) si->name, name);
-    si->ba_index = -1; /* by default, prelinked */
     if(solist == NULL)
         sonext = solist = si;
     else {
@@ -610,11 +581,4 @@ void __linker_init(char *filename)
 	syssyms = p;
 
 	gzclose(gzfile);
-
-	//test
-	/*p = sym;
-	while (p != NULL) {
-		printf("%x %s\n", p->value, p->name);
-		p = p->next;
-	}*/
 }
