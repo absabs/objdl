@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <pthread.h>
+#include "cexplock.h"
 #include "dlfcn.h"
 #include "linker.h"
 
@@ -41,19 +41,20 @@ static int dl_last_err = DL_SUCCESS;
 #define likely(expr)   __builtin_expect (expr, 1)
 #define unlikely(expr) __builtin_expect (expr, 0)
 
-static pthread_mutex_t dl_lock = PTHREAD_MUTEX_INITIALIZER;
+static CexpLock dl_lock;
 
 void *dlopen(const char *filename, int flag) 
 {
 	soinfo *ret;
 	static int initialized = 0;
 
-	pthread_mutex_lock(&dl_lock);
-	
 	if (!initialized) {
+		cexpLockCreate(&dl_lock);
 		__linker_init(SYSSYMFILE);
 		initialized = 1;
 	}
+	
+	cexpLock(dl_lock);
 
 	ret = find_library(filename);
 	if (unlikely(ret == NULL)) {
@@ -61,7 +62,7 @@ void *dlopen(const char *filename, int flag)
 	} else {
 		ret->refcount++;
 	}
-	pthread_mutex_unlock(&dl_lock);
+	cexpUnlock(dl_lock);
 	return ret;
 }
 
@@ -75,9 +76,8 @@ const char *dlerror(void)
 void *dlsym(void *handle, const char *symbol)
 {
     unsigned long sym;
-    unsigned bind;
 
-    pthread_mutex_lock(&dl_lock);
+    cexpLock(dl_lock);
     
     if(unlikely(handle == 0)) { 
         dl_last_err = DL_ERR_INVALID_LIBRARY_HANDLE;
@@ -97,20 +97,20 @@ void *dlsym(void *handle, const char *symbol)
     }
     
     if(likely(sym != 0)) {
-        pthread_mutex_unlock(&dl_lock);
+        cexpUnlock(dl_lock);
         return (void*)sym;
     }
     else dl_last_err = DL_ERR_SYMBOL_NOT_FOUND;
 
 err:
-    pthread_mutex_unlock(&dl_lock);
+    cexpUnlock(dl_lock);
     return 0;
 }
 
 int dlclose(void *handle)
 {
-	pthread_mutex_lock(&dl_lock);
+	cexpLock(dl_lock);
 	(void)unload_library((soinfo*)handle);
-	pthread_mutex_unlock(&dl_lock);
+	cexpUnlock(dl_lock);
 	return 0;
 }

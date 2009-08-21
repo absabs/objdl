@@ -32,7 +32,12 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdint.h>
+
+#ifdef __rtems__
+#include "pmelf.h"
+#else
 #include <linux/elf.h>
+#endif
 
 #define FLAG_LINKED     0x00000001
 #define FLAG_ERROR      0x00000002
@@ -65,13 +70,6 @@
 */
 #define R_ARM_ABS32      2
 
-struct dl_symbol
-{
-        unsigned long value;
-        const char *name;
-	struct dl_symbol *next;
-};
-
 typedef struct soinfo soinfo;
 
 struct soinfo
@@ -94,7 +92,7 @@ struct soinfo
     void (*fini_func)(void);
 
     unsigned refcount;
-    struct dl_symbol *dlsyms;
+    struct dl_symbol_list *dlsyms;
 };
 
 

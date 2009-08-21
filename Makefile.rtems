@@ -1,0 +1,57 @@
+#
+#  $Id: Makefile,v 1.1.1.1 2009/08/06 20:25:58 joel Exp $
+#
+
+#
+#  RTEMS_MAKEFILE_PATH is typically set in an environment variable
+#
+RTEMS_MAKEFILE_PATH = ../test/i386-rtems4.10/pc386
+RTEMS_TOOL_PATH = /opt/rtems-4.10
+GCC_VERSION = 4.4.1
+PGM=${ARCH}/gsoc.exe
+TARFILES = t.o
+TAROBJ = ${ARCH}/tarfile.o
+LDEP = ldep/ldep
+
+# optional managers required
+MANAGERS=all
+
+# C source names
+CSRCS = init.c dlfcn.c linker.c demo.c
+COBJS = $(CSRCS:%.c=${ARCH}/%.o)
+
+include $(RTEMS_MAKEFILE_PATH)/Makefile.inc
+include $(RTEMS_CUSTOM)
+include $(PROJECT_ROOT)/make/leaf.cfg
+
+LD_LIBS = -lz
+OBJS= $(COBJS) $(CXXOBJS) $(ASOBJS) $(TAROBJ) $(ARCH)/symtab.o
+
+
+##
+## build the ldep binary 
+## 
+$(LDEP):: ldep/ldep.c
+	cc -O -o $(LDEP) ldep/ldep.c
+##
+## Build the symbol table ( Dependancy list ) for CEXP
+##
+symtab.c::  $(LDEP)
+	$(NM) -g -fposix $(RTEMS_TOOL_PATH)/$(RTEMS_CPU)-rtems4.10/lib/libc.a > $(ARCH)/libc.nm
+	$(NM) -g -fposix $(RTEMS_TOOL_PATH)/$(RTEMS_CPU)-rtems4.10/lib/libm.a > $(ARCH)/libm.nm
+	$(NM) -g -fposix $(RTEMS_TOOL_PATH)/lib/gcc/$(RTEMS_CPU)-rtems4.10/$(GCC_VERSION)/libgcc.a > $(ARCH)/libgcc.nm
+	$(NM) -g -fposix $(RTEMS_MAKEFILE_PATH)/lib/librtemsbsp.a > $(ARCH)/librtemsbsp.nm
+	$(NM) -g -fposix $(RTEMS_MAKEFILE_PATH)/lib/librtemscpu.a > $(ARCH)/librtemscpu.nm
+	$(NM) -g -fposix $(ARCH)/demo.o  > $(ARCH)/app.nm
+#	$(LDEP) -F -l -u -x ldep/libc.exc -x ldep/librtemscpu.exc -x ldep/librtemsbsp.exc -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm deps/libc.nm > $(ARCH)/ldep.log
+	$(LDEP) -F -l -u -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm $(ARCH)/libc.nm > $(ARCH)/ldep.log
+
+
+$(TAROBJ): ${ARCH}/$(TARFILES)
+	tar -C ${ARCH} -cf tarfile $(TARFILES)
+	$(LD) -r --noinhibit-exec -o $@ -b binary tarfile
+	rm -f tarfile
+all:    ${ARCH} $(PGM) 
+
+$(PGM): $(OBJS)
+	$(make-exe)

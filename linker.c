@@ -31,16 +31,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <pthread.h>
 #include <zlib.h>
 
 #include "dlfcn.h"
 #include "linker.h"
+#include "sym.h"
 #include "linker_debug.h"
 
 #define SO_MAX 64
@@ -50,7 +51,9 @@ static soinfo sopool[SO_MAX];
 static soinfo *freelist = NULL;
 static soinfo *solist = NULL;
 static soinfo *sonext = NULL;
-static struct dl_symbol *syssyms=NULL;
+static struct dl_symbol *nocexp = NULL;
+static struct dl_symbol *syssyms = NULL;
+extern struct dl_symbol *cexpSystemSymbols __attribute__((weak, alias("nocexp")));
 
 int debug_verbosity;
 
@@ -198,14 +201,14 @@ static void elf_loadsection(int fd, Elf32_Shdr *s, char *q)
 
 static void add_global_symbol(soinfo *si, char *name, unsigned long value)
 {
-	struct dl_symbol *dlsym;
+	struct dl_symbol_list *dlsym;
 	TRACE("%p add global symbol:%s@0x%lx\n", si, name, value);
 	dlsym = malloc(sizeof(*dlsym));
 	if (!dlsym) {
 		ERROR("malloc failed!\n");
 	}
-	dlsym->name = strdup(name);
-	dlsym->value = value;
+	dlsym->sym.name = strdup(name);
+	dlsym->sym.value = value;
 	dlsym->next = si->dlsyms;
 	si->dlsyms = dlsym;
 }
@@ -213,16 +216,18 @@ static void add_global_symbol(soinfo *si, char *name, unsigned long value)
 static unsigned long lookup_global_symbol(const char *name)
 {
 	soinfo *si;
-	struct dl_symbol *dlsym;
+	struct dl_symbol *entry;
+	struct dl_symbol_list *dlsym;
 
-	for (dlsym = syssyms; dlsym; dlsym=dlsym->next) {
-		if (!strcmp(name, dlsym->name))
-			return dlsym->value;
+	for (entry = syssyms; entry->name; ++entry) {
+		if (!strcmp(name, entry->name))
+			return entry->value;
 	}
+
 	for (si = solist; !si; si=si->next) {
 		for (dlsym = si->dlsyms; dlsym; dlsym=dlsym->next) {
-			if (!strcmp(name, dlsym->name))
-				return dlsym->value;
+			if (!strcmp(name, dlsym->sym.name))
+				return dlsym->sym.value;
 		}
 	}
 	return 0;
@@ -230,12 +235,12 @@ static unsigned long lookup_global_symbol(const char *name)
 
 unsigned long lookup_in_library(soinfo *si, const char *name)
 {
-	struct dl_symbol *dlsym;
+	struct dl_symbol_list *dlsym;
 	TRACE("lookup symbol [%s] at %p\n", name, si);
 	for (dlsym = si->dlsyms; dlsym; dlsym=dlsym->next) {
-		if (!strcmp(name, dlsym->name)){
-			TRACE("[%s] found at %p\n", name, dlsym->value);
-			return dlsym->value;
+		if (!strcmp(name, dlsym->sym.name)){
+			TRACE("[%s] found at %lx\n", name, dlsym->sym.value);
+			return dlsym->sym.value;
 		}
 	}
 	return 0;
@@ -252,9 +257,6 @@ static void resolve_symbols(Elf32_Shdr *sechdrs,
 			char *strtab, soinfo *si)
 {
 	char *name;
-	int ret = 0;
-	unsigned long secbase;
-	struct dl_symbol *dlsym;
 	unsigned char type, bind;
 	unsigned int i, num = sechdrs[symindex].sh_size / sizeof(Elf32_Sym);
 	Elf32_Sym *sym = (Elf32_Sym *)sechdrs[symindex].sh_addr;
@@ -341,7 +343,7 @@ static soinfo *
 load_library(const char *name)
 {
 	int fd = open_library(name);
-	int i, j, cnt, err = 0;
+	int i, cnt, err = 0;
 	soinfo *si = NULL;
 	Elf32_Ehdr hdr;
 	Elf32_Shdr *sechdrs, *p;
@@ -555,30 +557,49 @@ unsigned unload_library(soinfo *si)
 void __linker_init(char *filename)
 {
 	gzFile gzfile;
-	char buffer[BUFSIZ/2];
+	char buf[BUFSIZ/2];
+	char otype, *rest;
+	unsigned long val;
+	int count = 0;
 	struct dl_symbol *entry;
-	struct dl_symbol *p = syssyms;
 
+	if (cexpSystemSymbols) {
+		syssyms = cexpSystemSymbols;
+		return;
+	}
 	gzfile = gzopen(filename, "rb");
 	if (gzfile == NULL) {
 		ERROR("error gzopen sym file:%s\n", filename);
 		exit(-1);
 	}
 	
-	while (gzgets(gzfile, buffer, sizeof(buffer))) {
-		entry = malloc(sizeof(*entry));
-		if (!entry) {
-			ERROR("No Memory\n");
-			exit(-1);
-		}
-		buffer[strlen(buffer)-1] = '\0';
-		buffer[8] = '\0';
-		entry->value = strtoul(buffer, NULL, 16);
-		entry->name = strdup(buffer + 11);
-		entry->next = p;
-		p = entry;
+	while (gzgets(gzfile, buf, sizeof(buf))) {
+		for (rest = buf; *rest && *rest!=' ' && *rest!='\t' &&*rest!='\n'; ++rest)
+			;
+		*rest++ = 0;
+		sscanf(rest, "%c%lx", &otype, &val);
+		if(toupper(otype) == 'U')
+			continue;
+		++count;
 	}
-	syssyms = p;
+	entry = syssyms = calloc(count+1, sizeof(struct dl_symbol));
+	if (!syssyms) {
+		ERROR("No Memory\n");
+		exit(-1);
+	}
+	
+	gzrewind(gzfile);
+	while (gzgets(gzfile, buf, sizeof(buf))) {
+		for (rest = buf; *rest && *rest!=' ' && *rest!='\t' &&*rest!='\n'; ++rest)
+			;
+		*rest++ = 0;
+		sscanf(rest, "%c%lx", &otype, &val);
+		if(toupper(otype) == 'U')
+			continue;
+		entry->value = val;
+		entry->name = strdup(buf);
+		++entry;
+	}
 
 	gzclose(gzfile);
 }
