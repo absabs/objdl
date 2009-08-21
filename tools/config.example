@@ -1,0 +1,9 @@
+/* symbol config samples 
+ * processed by mydeps
+ */
+strcmp
+strdup
+printf
+malloc
+free
+printf

@@ -5,9 +5,10 @@
 #include <string.h>
 #include <ctype.h>
 
-struct list {
+#define ONCEMORE 1024
+
+struct namerec {
 	char *name;
-	struct list *next;
 };
 /* Cexp private versions of getc, ungetc. They operate
  * on a string buffer (*pchpt) until it's empty and then
@@ -15,9 +16,11 @@ struct list {
  * These routines are mainly used to skip comments in
  * the 'remove_list' file.
  */
-static int mygc(char **pchpt, FILE *f)
+static int 
+mygc(char **pchpt, FILE *f)
 {
-int rval;
+	int rval;
+	
 	if (*pchpt) {
 		rval = *((*pchpt)++);
 		if (!**pchpt)
@@ -28,30 +31,55 @@ int rval;
 	return rval;
 }
 
+static int 
+find_duplicate(struct namerec *rec, int count, char *name)
+{
+	struct namerec *p;
+
+	for (p = rec + count - 1; p >= rec; --p) {
+		if (!strcmp(p->name, name))
+			return 1;
+	}
+	return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
-	int i;
+	int i, vecsize, count = 0;
 	FILE *fout, *fin;
 	char *comment, buf[64];
-	struct list *p, head;
+	struct namerec *vec;
 	
-	p = &head;	
 	fin = fopen(argv[1], "r");
 	if (!fin) {
 		perror("opening config file");
-		exit (1);
+		return -1;
 	}
 	
 	fout = fopen(argv[2], "w");
 	if (!fout) {
 		perror("opening source file");
-		exit (1);
+		return -1;
 	}
+
+	vec = malloc(ONCEMORE*sizeof(struct namerec));
+	if (!vec) {
+		printf("no memory\n");
+		fclose(fin);
+		fclose(fout);
+		return -1;
+	}
+	vecsize = ONCEMORE;
 	
 	fprintf(fout,"#include \"cexpsyms.h\"\n\n");
 
 	while (fgets(buf, sizeof(buf), fin)) {
+
+		if ( !buf[63] ) {
+			fprintf(stderr,"Scanner buffer overrun\n");
+			return -1;
+		}
 		/* does a comment start on this line
 		 * (note: '/' '*' must be on the same line, i.e. in buf)
 		 */
@@ -87,21 +115,23 @@ main(int argc, char *argv[])
 #if DEBUG & DEBUG_COMMENT
 printf("Scanned '%s'\n",buf); continue;
 #endif
+		if (find_duplicate(vec, count, buf))
+			continue;
 
 		fprintf(fout,"extern int %s;\n",buf);
-		p->next = malloc(sizeof(*p));
-		p->next->name = strdup(buf);
-		p = p->next;
-
+		vec[count++].name = strdup(buf);
+		if (count > vecsize) {
+			vecsize += ONCEMORE;
+			vec = realloc(vec, vecsize*sizeof(struct namerec));
+		}
 	}
-	p->next = NULL;
 
 	fprintf(fout,"\nstruct rec system_symbols[] = {\n");
 
-	for(p = head.next; p; p = p->next) {
+	for(i = 0; i < count; i++) {
 		fprintf(fout,"\t{\n");
-		fprintf(fout,"\t\t.name   = \"%s\",\n", p->name);
-		fprintf(fout,"\t\t.value  = (unsigned long)&%s,\n", p->name);
+		fprintf(fout,"\t\t.name   = \"%s\",\n", vec[i].name);
+		fprintf(fout,"\t\t.value  = (unsigned long)&%s,\n", vec[i].name);
 		fprintf(fout,"\t},\n");
 	}
 
