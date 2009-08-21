@@ -7,8 +7,8 @@
 #
 
 #define USINGLDEP
-#RTEMS_MAKEFILE_PATH = ../test/i386-rtems4.10/pc386
-RTEMS_MAKEFILE_PATH = ../sparc/sparc-rtems4.10/sis
+RTEMS_MAKEFILE_PATH = ../test/i386-rtems4.10/pc386
+#RTEMS_MAKEFILE_PATH = ../sparc/sparc-rtems4.10/sis
 
 RTEMS_TOOL_PATH = /opt/rtems-4.10
 GCC_VERSION = 4.4.1

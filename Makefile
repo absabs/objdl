@@ -1,5 +1,5 @@
-CFLAGS ?= -g -fno-builtin
-PROGS = demo
+CFLAGS ?= -O2 -march=native -fno-builtin
+PROGS = dldemo
 
 VERSION = "1.0"
 
@@ -7,7 +7,7 @@ all: t.o symtab.c $(PROGS)
 
 OBJS	= dlfcn.o linker.o demo.o demo_main.o symtab.o 
 LIBS	= -lpthread -lz
-demo: $(OBJS) Makefile
+dldemo: $(OBJS) Makefile
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 symtab.c: tools/config.example tools/mydeps
