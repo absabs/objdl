@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 	}
 	vecsize = ONCEMORE;
 	
-	fprintf(fout,"#include \"cexpsyms.h\"\n\n");
+	fprintf(fout,"#include \"sym.h\"\n\n");
 
 	while (fgets(buf, sizeof(buf), fin)) {
 
@@ -126,7 +126,7 @@ printf("Scanned '%s'\n",buf); continue;
 		}
 	}
 
-	fprintf(fout,"\nstruct rec system_symbols[] = {\n");
+	fprintf(fout,"\nstatic struct dl_symbol system_symbols[] = {\n");
 
 	for(i = 0; i < count; i++) {
 		fprintf(fout,"\t{\n");
@@ -139,4 +139,5 @@ printf("Scanned '%s'\n",buf); continue;
 	fprintf(fout,"\t0, /* terminating record */\n");
 	fprintf(fout,"\t},\n");
 	fprintf(fout,"};\n");
+	fprintf(fout,"struct dl_symbl *cexpSystemSymbols = system_symbols;\n");
 }

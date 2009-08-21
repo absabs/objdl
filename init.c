@@ -23,16 +23,12 @@
 #define CONFIGURE_INIT
 #include "system.h"
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
-#include <stdlib.h>
 #include <errno.h>
-#include <rtems.h>
 #include <fcntl.h>
 #include <rtems/error.h>
-#include <ctype.h>
-#include <rtems/libcsupport.h>
 #include <rtems/shell.h>
+#include <rtems/untar.h>
 
 void writeFile(
   const char *name,
@@ -43,7 +39,7 @@ void writeFile(
   int sc;
   sc = setuid(0);
   if ( sc ) {
-    printf( "setuid failed: %s:\n", name, strerror(errno) );
+    printf( "setuid %s failed: %s:\n", name, strerror(errno) );
   }
 
   rtems_shell_write_file( name, contents );
@@ -55,14 +51,11 @@ void writeFile(
 }
 
 /*
-** elf file load command
+** dynamic load demo command
 */
-int load_command(int argc, char *argv[])
+extern void demo(char *libname, char *symname);
+int demo_command(int argc, char *argv[])
 {
-   int                status; 
-   unsigned long int  start_addr;   
-   void               (*fp)(void);
-
    /*
    ** Loading elf file
    */
@@ -89,7 +82,7 @@ void rtems_add_local_cmds(void)
    ** Add commands
    */ 
 
-   rtems_shell_add_cmd("load","misc","Load statuc module",load_command);
+   rtems_shell_add_cmd("dldemo","misc","dynamic object file load demo",demo_command);
   
 }
 #define writeScript( _name, _contents ) \

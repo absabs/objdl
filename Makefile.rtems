@@ -5,13 +5,15 @@
 #
 #  RTEMS_MAKEFILE_PATH is typically set in an environment variable
 #
+
+#define LDEP
 RTEMS_MAKEFILE_PATH = ../test/i386-rtems4.10/pc386
 RTEMS_TOOL_PATH = /opt/rtems-4.10
 GCC_VERSION = 4.4.1
 PGM=${ARCH}/gsoc.exe
 TARFILES = t.o
 TAROBJ = ${ARCH}/tarfile.o
-LDEP = ldep/ldep
+LDEP = tools/ldep/ldep
 
 # optional managers required
 MANAGERS=all
@@ -27,12 +29,12 @@ include $(PROJECT_ROOT)/make/leaf.cfg
 LD_LIBS = -lz
 OBJS= $(COBJS) $(CXXOBJS) $(ASOBJS) $(TAROBJ) $(ARCH)/symtab.o
 
-
+ifdef LDEP
 ##
 ## build the ldep binary 
 ## 
-$(LDEP):: ldep/ldep.c
-	cc -O -o $(LDEP) ldep/ldep.c
+$(LDEP):: tools/ldep/ldep.c
+	cc -O -o $@ $^
 ##
 ## Build the symbol table ( Dependancy list ) for CEXP
 ##
@@ -43,9 +45,16 @@ symtab.c::  $(LDEP)
 	$(NM) -g -fposix $(RTEMS_MAKEFILE_PATH)/lib/librtemsbsp.a > $(ARCH)/librtemsbsp.nm
 	$(NM) -g -fposix $(RTEMS_MAKEFILE_PATH)/lib/librtemscpu.a > $(ARCH)/librtemscpu.nm
 	$(NM) -g -fposix $(ARCH)/demo.o  > $(ARCH)/app.nm
-#	$(LDEP) -F -l -u -x ldep/libc.exc -x ldep/librtemscpu.exc -x ldep/librtemsbsp.exc -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm deps/libc.nm > $(ARCH)/ldep.log
-	$(LDEP) -F -l -u -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm $(ARCH)/libc.nm > $(ARCH)/ldep.log
+	$(LDEP) -F -l -u -x tools/ldep/libc.exc -x tools/ldep/librtemscpu.exc -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm $(ARCH)/libc.nm > $(ARCH)/ldep.log
+#	$(LDEP) -F -l -u -C $@  $(ARCH)/app.nm $(ARCH)/librtemsbsp.nm $(ARCH)/librtemscpu.nm $(ARCH)/libc.nm > $(ARCH)/ldep.log
 
+else
+symtab.c: tools/config.example tools/mydeps
+	tools/mydeps tools/config.example $@
+
+tools/mydeps: tools/mydeps.c
+	cc -o $@ $^
+endif
 
 $(TAROBJ): ${ARCH}/$(TARFILES)
 	tar -C ${ARCH} -cf tarfile $(TARFILES)

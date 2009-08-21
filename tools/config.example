@@ -1,6 +1,11 @@
 /* symbol config samples 
  * processed by mydeps
  */
+
+/* application symbol set*/
+kkget
+
+/* optional symbol set*/
 strcmp
 strdup
 printf
