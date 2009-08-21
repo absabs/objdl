@@ -302,6 +302,7 @@ static void resolve_symbols(Elf32_Shdr *sechdrs,
 	}
 }
 
+#ifdef __i386__
 static int
 do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 {
@@ -330,7 +331,7 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 			*where += sym->st_value - (uint32_t)where;
 			break;
 		default:
-			ERROR("unknown/unsupported relocation type: %u\n",
+			ERROR("unknown/unsupported relocation type: %x\n",
 			       ELF32_R_TYPE(rel[i].r_info));
 			return -1;
 			break;
@@ -339,11 +340,95 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 	return 0;
 }
 
+static int
+do_relocate_addend(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
+{
+	ERROR("RELA relocation unsupported\n");
+	return -1;
+}
+#endif
+
+#ifdef __sparc__
+static int
+do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
+{
+	ERROR("RELA relocation unsupported\n");
+	return -1;
+}
+
+static int
+do_relocate_addend(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
+{
+	int i, num;
+	Elf32_Rela *rel = (void *)sechdrs[relsec].sh_addr;
+	Elf32_Sym *sym;
+	uint8_t *location;
+	uint32_t *where, v;
+	
+	num = sechdrs[relsec].sh_size/sizeof(*rel);
+	TRACE("%d relocations\n", num);
+
+	for (i = 0; i < num; i++) {
+		TRACE("[%d rel] sym=%d offset=0x%x\n", i, ELF32_R_SYM(rel[i].r_info), rel[i].r_offset);
+
+		/* This is where to make the change */
+		location = (uint8_t *)sechdrs[sechdrs[relsec].sh_info].sh_addr
+			+ rel[i].r_offset;
+		where = (uint32_t *)location;
+
+
+		/* This is the symbol it is referring to.  Note that all
+		   undefined symbols have been resolved.  */
+		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr
+			+ ELF32_R_SYM(rel[i].r_info);
+		v = sym->st_value + rel[i].r_addend;
+
+		switch (ELF32_R_TYPE(rel[i].r_info) & 0xff) {
+
+		case R_SPARC_UA32:
+			location[0] = v >> 24;
+			location[1] = v >> 16;
+			location[2] = v >>  8;
+			location[3] = v >>  0;
+			break;
+
+		case R_SPARC_WDISP30:
+			v -= (uint32_t) location;
+			*where = (*where & ~0x3fffffff) |
+				((v >> 2) & 0x3fffffff);
+			break;
+
+		case R_SPARC_WDISP22:
+			v -= (uint32_t) location;
+			*where = (*where & ~0x3fffff) |
+				((v >> 2) & 0x3fffff);
+			break;
+
+		case R_SPARC_LO10:
+			*where = (*where & ~0x3ff) | (v & 0x3ff);
+			break;
+
+		case R_SPARC_HI22:
+			*where = (*where & ~0x3fffff) |
+				((v >> 10) & 0x3fffff);
+			break;
+
+		default:
+			ERROR("unknown/unsupported relocation type: %x\n",
+			       ELF32_R_TYPE(rel[i].r_info));
+			return -1;
+		};
+	}
+	return 0;
+
+}
+#endif
+
 static soinfo *
 load_library(const char *name)
 {
 	int fd = open_library(name);
-	int i, cnt, err = 0;
+	int i, cnt;
 	soinfo *si = NULL;
 	Elf32_Ehdr hdr;
 	Elf32_Shdr *sechdrs, *p;
@@ -415,11 +500,11 @@ load_library(const char *name)
 				if (!strcmp(sname,".data") ||
 					!strcmp(sname,".text")) {
 					totalsize += p->sh_size;
-					TRACE("section:%s %dB bytes\n", sname, p->sh_size);
+					TRACE("section:%s %uB bytes\n", sname, p->sh_size);
 				}
 				break;
 			case SHT_NOBITS:
-				TRACE("section:%s %dB bytes\n", sname, p->sh_size);
+				TRACE("section:%s %uB bytes\n", sname, p->sh_size);
 				totalsize += p->sh_size;
 				break;
 			case SHT_SYMTAB:
@@ -429,8 +514,10 @@ load_library(const char *name)
 			case SHT_RELA:
 			case SHT_REL:
 				if (!strcmp(sname,".rel.data") ||
-					!strcmp(sname,".rel.text")) {
-					TRACE("section:%s %dB bytes\n", sname, p->sh_size);
+					!strcmp(sname,".rel.text") || 
+					!strcmp(sname,".rela.data") ||
+					!strcmp(sname,".rela.text")) {
+					TRACE("section:%s %uB bytes\n", sname, p->sh_size);
 					totalsize += p->sh_size;
 				}
 				break;
@@ -470,15 +557,17 @@ load_library(const char *name)
 				p->sh_addr = (unsigned long)q;
 				q += p->sh_size;
 				strtab = malloc(sechdrs[p->sh_link].sh_size);
-				TRACE("string size: %d\n", sechdrs[p->sh_link].sh_size);
+				TRACE("string size: %u\n", sechdrs[p->sh_link].sh_size);
 				elf_loadsection(fd, &sechdrs[p->sh_link], strtab);
 				sechdrs[p->sh_link].sh_addr = (unsigned long)strtab;
 				break;
 			case SHT_RELA:
 			case SHT_REL:
 				if (!strcmp(sname,".rel.data") ||
-					!strcmp(sname,".rel.text")) {
-					TRACE("loading section: %d %s\n", p->sh_name, sname);
+					!strcmp(sname,".rel.text") ||
+					!strcmp(sname,".rela.data") ||
+					!strcmp(sname,".rela.text")) {
+					TRACE("loading section: %x %s\n", p->sh_name, sname);
 					elf_loadsection(fd, p, q);
 					p->sh_addr = (unsigned long)q;
 					q += p->sh_size;
@@ -499,13 +588,17 @@ load_library(const char *name)
 			if (!strcmp(sname,".rel.data") ||
 				!strcmp(sname,".rel.text")) {
 				TRACE("SHT_REL relocate %s\n", sname);
-				err = do_relocate(sechdrs, symindex, i);
-				if (err != 0)
+				if (do_relocate(sechdrs, symindex, i))
 					goto fail;
 			}
 		}
 		else if (sechdrs[i].sh_type == SHT_RELA) {
-			//todo
+			if (!strcmp(sname,".rela.data") ||
+				!strcmp(sname,".rela.text")) {
+				TRACE("SHT_REL relocate %s\n", sname);
+				if (do_relocate_addend(sechdrs, symindex, i))
+					goto fail;
+			}
 		}
 	}
 	TRACE("DONE\n");

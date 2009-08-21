@@ -18,4 +18,4 @@ tools/mydeps: tools/mydeps.c
 
 
 clean:
-	rm -f *~ $(PROGS) $(OBJS) t.o symtab.c tools/mydeps
+	rm -f *~ $(PROGS) $(OBJS) t.o symtab.c tools/mydeps tools/ldep/ldep
