@@ -100,6 +100,7 @@ static soinfo *alloc_info(const char *name)
 static void free_info(soinfo *si)
 {
     soinfo *prev = NULL, *trav;
+    struct dl_symbol_list *p;
 
     TRACE("name %s: freeing soinfo @ %p\n", si->name, si);
 
@@ -114,6 +115,11 @@ static void free_info(soinfo *si)
         return;
     }
 
+    for (p = si->dlsyms; p; p = p->next) {
+        free(p->sym.name);
+        p = p->next;
+        free(p);
+    }
     if (prev != NULL)
        prev->next = si->next;
     if (si == sonext) sonext = prev;
@@ -317,8 +323,7 @@ do_relocate(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int relsec)
 		TRACE("[%d rel] sym=%d offset=0x%x\n", i, ELF32_R_SYM(rel[i].r_info), rel[i].r_offset);
 		where = (void *)sechdrs[sechdrs[relsec].sh_info].sh_addr
 			+ rel[i].r_offset;
-		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr
-			+ ELF32_R_SYM(rel[i].r_info);
+		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr + ELF32_R_SYM(rel[i].r_info);
 
 		switch (ELF32_R_TYPE(rel[i].r_info)) {
 		case R_386_32://s+a
@@ -371,16 +376,11 @@ do_relocate_addend(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int rels
 	for (i = 0; i < num; i++) {
 		TRACE("[%d rel] sym=%d offset=0x%x\n", i, ELF32_R_SYM(rel[i].r_info), rel[i].r_offset);
 
-		/* This is where to make the change */
 		location = (uint8_t *)sechdrs[sechdrs[relsec].sh_info].sh_addr
 			+ rel[i].r_offset;
 		where = (uint32_t *)location;
 
-
-		/* This is the symbol it is referring to.  Note that all
-		   undefined symbols have been resolved.  */
-		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr
-			+ ELF32_R_SYM(rel[i].r_info);
+		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr + ELF32_R_SYM(rel[i].r_info);
 		v = sym->st_value + rel[i].r_addend;
 
 		switch (ELF32_R_TYPE(rel[i].r_info) & 0xff) {

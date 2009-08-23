@@ -2,7 +2,7 @@
 #define _LINKER_SYM_H_
 struct dl_symbol
 {
-        const char *name;
+        char *name;
         unsigned long value;
 };
 struct dl_symbol_list
