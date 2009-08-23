@@ -24,12 +24,20 @@ void demo(char *libname, char *symname)
 
     printf("opening symbol [%s]\n", symname);
     symbol = dlsym(handle, symname);
-    printf("*******%d*********\n", ((int_fn_void_t)symbol)());
     dlerr = dlerror();
-    if (dlerr != NULL) fprintf(stderr, "dlsym() error: %s\n", dlerr);
+    if (dlerr != NULL) {
+        fprintf(stderr, "dlsym() error: %s\n", dlerr);
+        return;
+    }
+    printf("*******%d*********\n", ((int_fn_void_t)symbol)());
 
     printf("opening symbol [%s] via RTLD_DEFAULT\n", "kkget");
     symbol = dlsym(RTLD_DEFAULT, "kkget");
+    dlerr = dlerror();
+    if (dlerr != NULL) {
+        fprintf(stderr, "dlsym() error: %s\n", dlerr);
+        return;
+    }
     printf("*******%d*********\n", ((int_fn_void_t)symbol)());
     printf("closing library [%s]\n", libname);
     dlclose(handle);
