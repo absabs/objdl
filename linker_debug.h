@@ -54,8 +54,8 @@
 #define FALSE                0
 
 
-#define __PRINTVF(v,f,x...)   do {                                        \
-        (debug_verbosity > (v)) && (printf(x), ((f) && fflush(stdout))); \
+#define __PRINTVF(v,f,x...)   do {                                      \
+        if(debug_verbosity > (v)){printf(x); if(f)fflush(stdout);}      \
     } while (0)
 #if LINKER_DEBUG
 extern int debug_verbosity;

@@ -6,7 +6,7 @@
 #  RTEMS_MAKEFILE_PATH is typically set in an environment variable
 #
 
-#define USINGLDEP
+USINGLDEP=0
 RTEMS_MAKEFILE_PATH = ../test/i386-rtems4.10/pc386
 #RTEMS_MAKEFILE_PATH = ../sparc/sparc-rtems4.10/sis
 
@@ -31,7 +31,7 @@ include $(PROJECT_ROOT)/make/leaf.cfg
 LD_LIBS = -lz
 OBJS= $(COBJS) $(CXXOBJS) $(ASOBJS) $(TAROBJ) $(ARCH)/symtab.o
 
-ifdef USINGLDEP
+ifeq ($(USINGLDEP),1)
 ##
 ## build the ldep binary 
 ## 
