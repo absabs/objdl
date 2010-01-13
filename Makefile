@@ -3,7 +3,7 @@ PROGS = dldemo
 
 VERSION = "1.0"
 
-all: t.o symtab.c $(PROGS)
+all: t.o $(PROGS)
 
 OBJS	= dlfcn.o linker.o demo.o demo_main.o symtab.o 
 LIBS	= -lpthread -lz
@@ -12,7 +12,6 @@ dldemo: $(OBJS) Makefile
 
 symtab.c: tools/config.example tools/mydeps
 	tools/mydeps tools/config.example $@
-
 tools/mydeps: tools/mydeps.c
 	$(CC) -o $@ $^
 

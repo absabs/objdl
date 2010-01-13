@@ -1,0 +1,16 @@
+This is My Google Summer of Code 2009's fruit. It implements object file dynamic loading for rtems, while you can also try it under Linux. It reuse some project source code: google's android c library bionic, ldep by Till Straumann, fileio under rtems testsuites/samples, and rki by my mentor Alan Cudmore. Thanks RTEMS and Google for giving me chance to have such a happy coding summer. Thank my mentor Alan and RTEMS' GSoC's administrator Dr.Joel for helping me when I have trouble.
+
+*NOTE: It only support x86-32 and sparc-32 now, while other architecturs support such as arm, mips etc aren't hard to implemente. Refer git@github.com:absabs/objdl.git for the lastest source.
+
+ 
+*build for Linux
+make
+./dldemo -l t.o -s get
+
+*build for RTEMS
+RTEMS_MAKEFILE_PATH=YOUR_PATH_TO_BUILT_RTEMS_MAKEFILE make -f Makefile.rtems
+1)if for i386-rtems, make grub load the exe under virtual machine or real hardware, have a look at rtems-grub.cfg for example.
+2)if for other architectures, make your bootloader load the exe.
+
+Thanks,
+Jisheng <jszhang3@gmail.com>

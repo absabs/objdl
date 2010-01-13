@@ -383,37 +383,44 @@ do_relocate_addend(Elf32_Shdr *sechdrs, unsigned int symindex, unsigned int rels
 		sym = (Elf32_Sym *)sechdrs[symindex].sh_addr + ELF32_R_SYM(rel[i].r_info);
 		v = sym->st_value + rel[i].r_addend;
 
+		/*refer http://docs.sun.com for SPARC 32 relocation types*/
 		switch (ELF32_R_TYPE(rel[i].r_info) & 0xff) {
 
-		case R_SPARC_UA32:
-			location[0] = v >> 24;
-			location[1] = v >> 16;
-			location[2] = v >>  8;
-			location[3] = v >>  0;
-			break;
-
 		case R_SPARC_WDISP30:
+			/* V-disp30 (S + A - P) >> 2 */
 			v -= (uint32_t) location;
 			*where = (*where & ~0x3fffffff) |
 				((v >> 2) & 0x3fffffff);
 			break;
 
 		case R_SPARC_WDISP22:
+			/* V-disp22 (S + A - P) >> 2 */
 			v -= (uint32_t) location;
 			*where = (*where & ~0x3fffff) |
 				((v >> 2) & 0x3fffff);
 			break;
 
-		case R_SPARC_LO10:
-			*where = (*where & ~0x3ff) | (v & 0x3ff);
-			break;
-
 		case R_SPARC_HI22:
+			/* T-imm22 (S + A) >> 10 */
 			*where = (*where & ~0x3fffff) |
 				((v >> 10) & 0x3fffff);
 			break;
 
+		case R_SPARC_LO10:
+			/* T-simm13 (S + A) & 0x3ff */
+			*where = (*where & ~0x3ff) | (v & 0x3ff);
+			break;
+
+		case R_SPARC_UA32:
+			/* V-word32 S + A */
+			location[0] = v >> 24;
+			location[1] = v >> 16;
+			location[2] = v >>  8;
+			location[3] = v >>  0;
+			break;
+
 		default:
+			/* need to support other relocation types? */
 			ERROR("unknown/unsupported relocation type: %x\n",
 			       ELF32_R_TYPE(rel[i].r_info));
 			return -1;

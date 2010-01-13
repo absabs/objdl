@@ -140,4 +140,6 @@ printf("Scanned '%s'\n",buf); continue;
 	fprintf(fout,"\t},\n");
 	fprintf(fout,"};\n");
 	fprintf(fout,"struct dl_symbl *cexpSystemSymbols = system_symbols;\n");
+
+	return 0;
 }
