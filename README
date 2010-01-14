@@ -2,7 +2,7 @@ This is My Google Summer of Code 2009's fruit. It implements object file dynamic
 
 *NOTE: It only support x86-32 and sparc-32 now, while other architecturs support such as arm, mips etc aren't hard to implemente. Refer git@github.com:absabs/objdl.git for the lastest source.
 
- 
+1. How to build 
 *build for Linux
 make
 ./dldemo -l t.o -s get
@@ -11,6 +11,12 @@ make
 RTEMS_MAKEFILE_PATH=YOUR_PATH_TO_BUILT_RTEMS_MAKEFILE make -f Makefile.rtems
 1)if for i386-rtems, make grub load the exe under virtual machine or real hardware, have a look at rtems-grub.cfg for example.
 2)if for other architectures, make your bootloader load the exe.
+
+2. How add your dynamic object file
+write the c source file as normal, then add it into Makefile or Makefile.rtems following the "t.o" example
+
+3. As rtems only link the needed symbol into the final os image, then how to define symbols which might be needed in the future?
+This issue is resolved by tools/mydeps.c infulenced heavily by ldep. mydep need a config file as its input. An example is tools/config.example. The content included between "/*" and "*/" is comment. Then put need symbols each per line. mydep output is a .c source file which we need to link into our rtems image.
 
 Thanks,
 Jisheng <jszhang3@gmail.com>
